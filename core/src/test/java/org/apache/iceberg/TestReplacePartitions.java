@@ -89,12 +89,12 @@ public class TestReplacePartitions extends TableTestBase {
 
   @Test
   public void testReplaceOnePartition() {
-    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).toBranch(branch).commit();
+    commit(table, table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
 
     TableMetadata base = readMetadata();
     long baseId = latestSnapshot(base, branch).snapshotId();
 
-    table.newReplacePartitions().addFile(FILE_E).toBranch(branch).commit();
+    commit(table, table.newReplacePartitions().addFile(FILE_E), branch);
 
     long replaceId = latestSnapshot(readMetadata(), branch).snapshotId();
     Assert.assertNotEquals("Should create a new snapshot", baseId, replaceId);
@@ -127,7 +127,7 @@ public class TestReplacePartitions extends TableTestBase {
     TableMetadata base = readMetadata();
     long baseId = latestSnapshot(base, branch).snapshotId();
 
-    table.newReplacePartitions().addFile(FILE_E).toBranch(branch).commit();
+    commit(table, table.newReplacePartitions().addFile(FILE_E), branch);
 
     long replaceId = latestSnapshot(table, branch).snapshotId();
     Assert.assertNotEquals("Should create a new snapshot", baseId, replaceId);
@@ -155,7 +155,7 @@ public class TestReplacePartitions extends TableTestBase {
     Assert.assertEquals(
         "Table version should be 0", 0, (long) TestTables.metadataVersion("unpartitioned"));
 
-    unpartitioned.newAppend().appendFile(FILE_A).toBranch(branch).commit();
+    commit(table, unpartitioned.newAppend().appendFile(FILE_A), branch);
     // make sure the data was successfully added
     Assert.assertEquals(
         "Table version should be 1", 1, (long) TestTables.metadataVersion("unpartitioned"));
@@ -234,24 +234,19 @@ public class TestReplacePartitions extends TableTestBase {
 
   @Test
   public void testValidationFailure() {
-    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).toBranch(branch).commit();
+    commit(table, table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
 
     TableMetadata base = readMetadata();
     long baseId = latestSnapshot(base, branch).snapshotId();
 
     ReplacePartitions replace =
-        table
-            .newReplacePartitions()
-            .addFile(FILE_F)
-            .addFile(FILE_G)
-            .toBranch(branch)
-            .validateAppendOnly();
+        table.newReplacePartitions().addFile(FILE_F).addFile(FILE_G).validateAppendOnly();
 
     AssertHelpers.assertThrows(
         "Should reject commit with file not matching delete expression",
         ValidationException.class,
         "Cannot commit file that conflicts with existing partition",
-        replace::commit);
+        () -> commit(table, replace, branch));
 
     Assert.assertEquals(
         "Should not create a new snapshot",
@@ -261,12 +256,12 @@ public class TestReplacePartitions extends TableTestBase {
 
   @Test
   public void testValidationSuccess() {
-    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).toBranch(branch).commit();
+    commit(table, table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
 
     TableMetadata base = readMetadata();
     long baseId = latestSnapshot(base, branch).snapshotId();
 
-    table.newReplacePartitions().addFile(FILE_G).validateAppendOnly().toBranch(branch).commit();
+    commit(table, table.newReplacePartitions().addFile(FILE_G).validateAppendOnly(), branch);
 
     long replaceId = latestSnapshot(readMetadata(), branch).snapshotId();
     Assert.assertNotEquals("Should create a new snapshot", baseId, replaceId);
@@ -291,24 +286,21 @@ public class TestReplacePartitions extends TableTestBase {
 
   @Test
   public void testValidationNotInvoked() {
-    table.newFastAppend().appendFile(FILE_A).toBranch(branch).commit();
+    commit(table, table.newFastAppend().appendFile(FILE_A), branch);
 
     TableMetadata base = readMetadata();
 
     // Two concurrent ReplacePartitions with No Validation Enabled
-    table
+    commit(table, table
         .newReplacePartitions()
         .addFile(FILE_E)
         .validateFromSnapshot(latestSnapshot(base, branch).snapshotId())
-        .toBranch(branch)
-        .commit();
-    table
+        , branch);
+    commit(table, table
         .newReplacePartitions()
         .addFile(FILE_A) // Replaces FILE_E which becomes Deleted
         .addFile(FILE_B)
-        .validateFromSnapshot(latestSnapshot(base, branch).snapshotId())
-        .toBranch(branch)
-        .commit();
+        .validateFromSnapshot(latestSnapshot(base, branch).snapshotId()), branch);
 
     long replaceId = latestSnapshot(readMetadata(), branch).snapshotId();
     Assert.assertEquals(
@@ -329,7 +321,7 @@ public class TestReplacePartitions extends TableTestBase {
 
   @Test
   public void testValidateWithDefaultSnapshotId() {
-    table.newReplacePartitions().addFile(FILE_A).toBranch(branch).commit();
+    commit(table, table.newReplacePartitions().addFile(FILE_A), branch);
 
     // Concurrent Replace Partitions should fail with ValidationException
     ReplacePartitions replace = table.newReplacePartitions();
@@ -339,24 +331,22 @@ public class TestReplacePartitions extends TableTestBase {
         "Found conflicting files that can contain records matching partitions "
             + "[data_bucket=0, data_bucket=1]: [/path/to/data-a.parquet]",
         () ->
-            replace
+            commit(table, replace
                 .addFile(FILE_A)
                 .addFile(FILE_B)
                 .validateNoConflictingData()
-                .validateNoConflictingDeletes()
-                .toBranch(branch)
-                .commit());
+                .validateNoConflictingDeletes(), branch));
   }
 
   @Test
   public void testConcurrentReplaceConflict() {
-    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).toBranch(branch).commit();
+    commit(table, table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
 
     TableMetadata base = readMetadata();
     long baseId = latestSnapshot(base, branch).snapshotId();
 
     // Concurrent Replace Partitions should fail with ValidationException
-    table.newReplacePartitions().addFile(FILE_A).toBranch(branch).commit();
+    commit(table, table.newReplacePartitions().addFile(FILE_A), branch);
 
     AssertHelpers.assertThrows(
         "Should reject commit with file matching partitions replaced",
@@ -364,36 +354,32 @@ public class TestReplacePartitions extends TableTestBase {
         "Found conflicting files that can contain records matching partitions "
             + "[data_bucket=0, data_bucket=1]: [/path/to/data-a.parquet]",
         () ->
-            table
+            commit(table, table
                 .newReplacePartitions()
                 .validateFromSnapshot(baseId)
                 .addFile(FILE_A)
                 .addFile(FILE_B)
                 .validateNoConflictingData()
-                .validateNoConflictingDeletes()
-                .toBranch(branch)
-                .commit());
+                .validateNoConflictingDeletes(), branch));
   }
 
   @Test
   public void testConcurrentReplaceNoConflict() {
-    table.newFastAppend().appendFile(FILE_A).toBranch(branch).commit();
+    commit(table, table.newFastAppend().appendFile(FILE_A), branch);
 
     TableMetadata base = readMetadata();
     long id1 = latestSnapshot(base, branch).snapshotId();
 
     // Concurrent Replace Partitions should not fail if concerning different partitions
-    table.newReplacePartitions().addFile(FILE_A).toBranch(branch).commit();
+    commit(table, table.newReplacePartitions().addFile(FILE_A), branch);
     long id2 = latestSnapshot(readMetadata(), branch).snapshotId();
 
-    table
+    commit(table, table
         .newReplacePartitions()
         .validateFromSnapshot(id1)
         .validateNoConflictingData()
         .validateNoConflictingDeletes()
-        .toBranch(branch)
-        .addFile(FILE_B)
-        .commit();
+        .addFile(FILE_B), branch);
 
     long id3 = latestSnapshot(readMetadata(), branch).snapshotId();
     Assert.assertEquals(
@@ -417,13 +403,13 @@ public class TestReplacePartitions extends TableTestBase {
     Table unpartitioned =
         TestTables.create(
             tableDir, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
-    unpartitioned.newAppend().appendFile(FILE_UNPARTITIONED_A).toBranch(branch).commit();
+    commit(table, unpartitioned.newAppend().appendFile(FILE_UNPARTITIONED_A), branch);
 
     TableMetadata replaceMetadata = TestTables.readMetadata("unpartitioned");
     long replaceBaseId = latestSnapshot(replaceMetadata, branch).snapshotId();
 
     // Concurrent ReplacePartitions should fail with ValidationException
-    unpartitioned.newReplacePartitions().addFile(FILE_UNPARTITIONED_A).toBranch(branch).commit();
+    commit(table, unpartitioned.newReplacePartitions().addFile(FILE_UNPARTITIONED_A), branch);
 
     AssertHelpers.assertThrows(
         "Should reject commit with file matching partitions replaced",
@@ -431,25 +417,23 @@ public class TestReplacePartitions extends TableTestBase {
         "Found conflicting files that can contain records matching true: "
             + "[/path/to/data-unpartitioned-a.parquet]",
         () ->
-            unpartitioned
+            commit(table, unpartitioned
                 .newReplacePartitions()
                 .validateFromSnapshot(replaceBaseId)
                 .validateNoConflictingData()
                 .validateNoConflictingDeletes()
-                .addFile(FILE_UNPARTITIONED_A)
-                .toBranch(branch)
-                .commit());
+                .addFile(FILE_UNPARTITIONED_A), branch));
   }
 
   @Test
   public void testAppendReplaceConflict() {
-    table.newFastAppend().appendFile(FILE_A).toBranch(branch).commit();
+    commit(table, table.newFastAppend().appendFile(FILE_A), branch);
 
     TableMetadata base = readMetadata();
     long baseId = latestSnapshot(base, branch).snapshotId();
 
     // Concurrent Append and ReplacePartition should fail with ValidationException
-    table.newFastAppend().appendFile(FILE_B).toBranch(branch).commit();
+    commit(table, table.newFastAppend().appendFile(FILE_B), branch);
 
     AssertHelpers.assertThrows(
         "Should reject commit with file matching partitions replaced",
@@ -457,26 +441,24 @@ public class TestReplacePartitions extends TableTestBase {
         "Found conflicting files that can contain records matching partitions "
             + "[data_bucket=0, data_bucket=1]: [/path/to/data-b.parquet]",
         () ->
-            table
+            commit(table, table
                 .newReplacePartitions()
                 .validateFromSnapshot(baseId)
                 .validateNoConflictingData()
                 .validateNoConflictingDeletes()
                 .addFile(FILE_A)
-                .addFile(FILE_B)
-                .toBranch(branch)
-                .commit());
+                .addFile(FILE_B), branch));
   }
 
   @Test
   public void testAppendReplaceNoConflict() {
-    table.newFastAppend().appendFile(FILE_A).toBranch(branch).commit();
+    commit(table, table.newFastAppend().appendFile(FILE_A), branch);
 
     TableMetadata base = readMetadata();
     long id1 = latestSnapshot(base, branch).snapshotId();
 
     // Concurrent Append and ReplacePartition should not conflict if concerning different partitions
-    table.newFastAppend().appendFile(FILE_B).toBranch(branch).commit();
+    commit(table, table.newFastAppend().appendFile(FILE_B), branch);
 
     long id2 = latestSnapshot(readMetadata(), branch).snapshotId();
 
@@ -516,13 +498,13 @@ public class TestReplacePartitions extends TableTestBase {
     Table unpartitioned =
         TestTables.create(
             tableDir, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
-    unpartitioned.newAppend().appendFile(FILE_UNPARTITIONED_A).toBranch(branch).commit();
+    commit(table, unpartitioned.newAppend().appendFile(FILE_UNPARTITIONED_A), branch);
 
     TableMetadata replaceMetadata = TestTables.readMetadata("unpartitioned");
     long replaceBaseId = latestSnapshot(replaceMetadata, branch).snapshotId();
 
     // Concurrent Append and ReplacePartitions should fail with ValidationException
-    unpartitioned.newAppend().appendFile(FILE_UNPARTITIONED_A).toBranch(branch).commit();
+    commit(table, unpartitioned.newAppend().appendFile(FILE_UNPARTITIONED_A), branch);
 
     AssertHelpers.assertThrows(
         "Should reject commit with file matching partitions replaced",
@@ -543,18 +525,14 @@ public class TestReplacePartitions extends TableTestBase {
   @Test
   public void testDeleteReplaceConflict() {
     Assume.assumeTrue(formatVersion == 2);
-    table.newFastAppend().appendFile(FILE_A).toBranch(branch).commit();
+    commit(table, table.newFastAppend().appendFile(FILE_A), branch);
 
     TableMetadata base = readMetadata();
     long baseId = latestSnapshot(base, branch).snapshotId();
 
     // Concurrent Delete and ReplacePartition should fail with ValidationException
-    table
-        .newRowDelta()
-        .addDeletes(FILE_A_DELETES)
-        .validateFromSnapshot(baseId)
-        .toBranch(branch)
-        .commit();
+    commit(
+        table, table.newRowDelta().addDeletes(FILE_A_DELETES).validateFromSnapshot(baseId), branch);
 
     AssertHelpers.assertThrows(
         "Should reject commit with file matching partitions replaced",
@@ -579,13 +557,13 @@ public class TestReplacePartitions extends TableTestBase {
     Table unpartitioned =
         TestTables.create(
             tableDir, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
-    unpartitioned.newAppend().appendFile(FILE_A).toBranch(branch).commit();
+    commit(table, unpartitioned.newAppend().appendFile(FILE_A), branch);
 
     TableMetadata replaceMetadata = TestTables.readMetadata("unpartitioned");
     long replaceBaseId = latestSnapshot(replaceMetadata, branch).snapshotId();
 
     // Concurrent Delete and ReplacePartitions should fail with ValidationException
-    unpartitioned.newRowDelta().addDeletes(FILE_UNPARTITIONED_A_DELETES).toBranch(branch).commit();
+    commit(table, unpartitioned.newRowDelta().addDeletes(FILE_UNPARTITIONED_A_DELETES), branch);
 
     AssertHelpers.assertThrows(
         "Should reject commit with file matching partitions replaced",
@@ -606,7 +584,7 @@ public class TestReplacePartitions extends TableTestBase {
   @Test
   public void testDeleteReplaceNoConflict() {
     Assume.assumeTrue(formatVersion == 2);
-    table.newFastAppend().appendFile(FILE_A).toBranch(branch).commit();
+    commit(table, table.newFastAppend().appendFile(FILE_A), branch);
     long id1 = latestSnapshot(readMetadata(), branch).snapshotId();
 
     // Concurrent Delta and ReplacePartition should not conflict if concerning different partitions
@@ -657,13 +635,13 @@ public class TestReplacePartitions extends TableTestBase {
   @Test
   public void testOverwriteReplaceConflict() {
     Assume.assumeTrue(formatVersion == 2);
-    table.newFastAppend().appendFile(FILE_A).toBranch(branch).commit();
+    commit(table, table.newFastAppend().appendFile(FILE_A), branch);
 
     TableMetadata base = readMetadata();
     long baseId = latestSnapshot(base, branch).snapshotId();
 
     // Concurrent Overwrite and ReplacePartition should fail with ValidationException
-    table.newOverwrite().deleteFile(FILE_A).toBranch(branch).commit();
+    commit(table, table.newOverwrite().deleteFile(FILE_A), branch);
 
     AssertHelpers.assertThrows(
         "Should reject commit with file matching partitions replaced",
@@ -684,14 +662,14 @@ public class TestReplacePartitions extends TableTestBase {
   @Test
   public void testOverwriteReplaceNoConflict() {
     Assume.assumeTrue(formatVersion == 2);
-    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).toBranch(branch).commit();
+    commit(table, table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
 
     TableMetadata base = readMetadata();
     long baseId = latestSnapshot(base, branch).snapshotId();
 
     // Concurrent Overwrite and ReplacePartition should not fail with if concerning different
     // partitions
-    table.newOverwrite().deleteFile(FILE_A).toBranch(branch).commit();
+    commit(table, table.newOverwrite().deleteFile(FILE_A), branch);
 
     table
         .newReplacePartitions()
@@ -728,13 +706,13 @@ public class TestReplacePartitions extends TableTestBase {
         TestTables.create(
             tableDir, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
 
-    unpartitioned.newAppend().appendFile(FILE_UNPARTITIONED_A).toBranch(branch).commit();
+    commit(table, unpartitioned.newAppend().appendFile(FILE_UNPARTITIONED_A), branch);
 
     TableMetadata replaceMetadata = TestTables.readMetadata("unpartitioned");
     long replaceBaseId = latestSnapshot(replaceMetadata, branch).snapshotId();
 
     // Concurrent Overwrite and ReplacePartitions should fail with ValidationException
-    unpartitioned.newOverwrite().deleteFile(FILE_UNPARTITIONED_A).toBranch(branch).commit();
+    commit(table, unpartitioned.newOverwrite().deleteFile(FILE_UNPARTITIONED_A), branch);
 
     AssertHelpers.assertThrows(
         "Should reject commit with file matching partitions replaced",
@@ -742,31 +720,33 @@ public class TestReplacePartitions extends TableTestBase {
         "Found conflicting deleted files that can contain records matching true: "
             + "[/path/to/data-unpartitioned-a.parquet]",
         () ->
-            unpartitioned
-                .newReplacePartitions()
-                .validateFromSnapshot(replaceBaseId)
-                .validateNoConflictingData()
-                .validateNoConflictingDeletes()
-                .addFile(FILE_UNPARTITIONED_A)
-                .toBranch(branch)
-                .commit());
+            commit(
+                table,
+                unpartitioned
+                    .newReplacePartitions()
+                    .validateFromSnapshot(replaceBaseId)
+                    .validateNoConflictingData()
+                    .validateNoConflictingDeletes()
+                    .addFile(FILE_UNPARTITIONED_A),
+                branch));
   }
 
   @Test
   public void testValidateOnlyDeletes() {
-    table.newAppend().appendFile(FILE_A).toBranch(branch).commit();
+    commit(table, table.newAppend().appendFile(FILE_A), branch);
     long baseId = latestSnapshot(readMetadata(), branch).snapshotId();
 
     // Snapshot Isolation mode: appends do not conflict with replace
-    table.newAppend().appendFile(FILE_B).toBranch(branch).commit();
+    commit(table, table.newAppend().appendFile(FILE_B), branch);
 
-    table
-        .newReplacePartitions()
-        .validateFromSnapshot(baseId)
-        .validateNoConflictingDeletes()
-        .addFile(FILE_B)
-        .toBranch(branch)
-        .commit();
+    commit(
+        table,
+        table
+            .newReplacePartitions()
+            .validateFromSnapshot(baseId)
+            .validateNoConflictingDeletes()
+            .addFile(FILE_B),
+        branch);
     long finalId = latestSnapshot(readMetadata(), branch).snapshotId();
 
     Assert.assertEquals(
