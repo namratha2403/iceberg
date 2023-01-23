@@ -122,7 +122,7 @@ public class TestReplacePartitions extends TableTestBase {
     // ensure the overwrite results in a merge
     table.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1").commit();
 
-    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).toBranch(branch).commit();
+    commit(table, table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
 
     TableMetadata base = readMetadata();
     long baseId = latestSnapshot(base, branch).snapshotId();

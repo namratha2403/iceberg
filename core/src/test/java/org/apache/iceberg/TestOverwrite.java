@@ -182,16 +182,16 @@ public class TestOverwrite extends TableTestBase {
   @Test
   public void testOverwriteWithAppendOutsideOfDelete() {
     TableMetadata base = TestTables.readMetadata(TABLE_NAME);
-    long baseId =
-        latestSnapshot(base, branch) == null ? -1 : latestSnapshot(base, branch).snapshotId();
+    Snapshot latestSnapshot = latestSnapshot(base, branch);
+    long baseId = latestSnapshot == null ? -1 : latestSnapshot.snapshotId();
 
     commit(
         table,
         table
             .newOverwrite()
             .overwriteByRowFilter(equal("date", "2018-06-08"))
-            .addFile(FILE_10_TO_14),
-        branch); // in 2018-06-09, NOT in 2018-06-08
+            .addFile(FILE_10_TO_14), // in 2018-06-09, NOT in 2018-06-08
+        branch);
 
     long overwriteId = latestSnapshot(table, branch).snapshotId();
 
