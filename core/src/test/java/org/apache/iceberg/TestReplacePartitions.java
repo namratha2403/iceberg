@@ -291,16 +291,21 @@ public class TestReplacePartitions extends TableTestBase {
     TableMetadata base = readMetadata();
 
     // Two concurrent ReplacePartitions with No Validation Enabled
-    commit(table, table
-        .newReplacePartitions()
-        .addFile(FILE_E)
-        .validateFromSnapshot(latestSnapshot(base, branch).snapshotId())
-        , branch);
-    commit(table, table
-        .newReplacePartitions()
-        .addFile(FILE_A) // Replaces FILE_E which becomes Deleted
-        .addFile(FILE_B)
-        .validateFromSnapshot(latestSnapshot(base, branch).snapshotId()), branch);
+    commit(
+        table,
+        table
+            .newReplacePartitions()
+            .addFile(FILE_E)
+            .validateFromSnapshot(latestSnapshot(base, branch).snapshotId()),
+        branch);
+    commit(
+        table,
+        table
+            .newReplacePartitions()
+            .addFile(FILE_A) // Replaces FILE_E which becomes Deleted
+            .addFile(FILE_B)
+            .validateFromSnapshot(latestSnapshot(base, branch).snapshotId()),
+        branch);
 
     long replaceId = latestSnapshot(readMetadata(), branch).snapshotId();
     Assert.assertEquals(
@@ -331,11 +336,14 @@ public class TestReplacePartitions extends TableTestBase {
         "Found conflicting files that can contain records matching partitions "
             + "[data_bucket=0, data_bucket=1]: [/path/to/data-a.parquet]",
         () ->
-            commit(table, replace
-                .addFile(FILE_A)
-                .addFile(FILE_B)
-                .validateNoConflictingData()
-                .validateNoConflictingDeletes(), branch));
+            commit(
+                table,
+                replace
+                    .addFile(FILE_A)
+                    .addFile(FILE_B)
+                    .validateNoConflictingData()
+                    .validateNoConflictingDeletes(),
+                branch));
   }
 
   @Test
@@ -354,13 +362,16 @@ public class TestReplacePartitions extends TableTestBase {
         "Found conflicting files that can contain records matching partitions "
             + "[data_bucket=0, data_bucket=1]: [/path/to/data-a.parquet]",
         () ->
-            commit(table, table
-                .newReplacePartitions()
-                .validateFromSnapshot(baseId)
-                .addFile(FILE_A)
-                .addFile(FILE_B)
-                .validateNoConflictingData()
-                .validateNoConflictingDeletes(), branch));
+            commit(
+                table,
+                table
+                    .newReplacePartitions()
+                    .validateFromSnapshot(baseId)
+                    .addFile(FILE_A)
+                    .addFile(FILE_B)
+                    .validateNoConflictingData()
+                    .validateNoConflictingDeletes(),
+                branch));
   }
 
   @Test
@@ -374,12 +385,15 @@ public class TestReplacePartitions extends TableTestBase {
     commit(table, table.newReplacePartitions().addFile(FILE_A), branch);
     long id2 = latestSnapshot(readMetadata(), branch).snapshotId();
 
-    commit(table, table
-        .newReplacePartitions()
-        .validateFromSnapshot(id1)
-        .validateNoConflictingData()
-        .validateNoConflictingDeletes()
-        .addFile(FILE_B), branch);
+    commit(
+        table,
+        table
+            .newReplacePartitions()
+            .validateFromSnapshot(id1)
+            .validateNoConflictingData()
+            .validateNoConflictingDeletes()
+            .addFile(FILE_B),
+        branch);
 
     long id3 = latestSnapshot(readMetadata(), branch).snapshotId();
     Assert.assertEquals(
@@ -417,12 +431,15 @@ public class TestReplacePartitions extends TableTestBase {
         "Found conflicting files that can contain records matching true: "
             + "[/path/to/data-unpartitioned-a.parquet]",
         () ->
-            commit(table, unpartitioned
-                .newReplacePartitions()
-                .validateFromSnapshot(replaceBaseId)
-                .validateNoConflictingData()
-                .validateNoConflictingDeletes()
-                .addFile(FILE_UNPARTITIONED_A), branch));
+            commit(
+                table,
+                unpartitioned
+                    .newReplacePartitions()
+                    .validateFromSnapshot(replaceBaseId)
+                    .validateNoConflictingData()
+                    .validateNoConflictingDeletes()
+                    .addFile(FILE_UNPARTITIONED_A),
+                branch));
   }
 
   @Test
@@ -441,13 +458,16 @@ public class TestReplacePartitions extends TableTestBase {
         "Found conflicting files that can contain records matching partitions "
             + "[data_bucket=0, data_bucket=1]: [/path/to/data-b.parquet]",
         () ->
-            commit(table, table
-                .newReplacePartitions()
-                .validateFromSnapshot(baseId)
-                .validateNoConflictingData()
-                .validateNoConflictingDeletes()
-                .addFile(FILE_A)
-                .addFile(FILE_B), branch));
+            commit(
+                table,
+                table
+                    .newReplacePartitions()
+                    .validateFromSnapshot(baseId)
+                    .validateNoConflictingData()
+                    .validateNoConflictingDeletes()
+                    .addFile(FILE_A)
+                    .addFile(FILE_B),
+                branch));
   }
 
   @Test
